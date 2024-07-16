@@ -1,4 +1,4 @@
-//7/3/2024
+//7/16/2024
 
 
 
@@ -47,25 +47,15 @@ int AlarmCode = 0;
 int DischargeCounter = 0;
 bool DischargeOvertake = false;
 int BoardVersion = 1;
-// update on 6/27/2024 STARTED
 bool SOCLockEnable = false;
 int SOCLockValue = 0;
-// update on 6/27/2024 ENDED
-
-
-
-
 int CanSim = 0;
-
-
-
-
 
 //PINS
 #define GEN_RE  0
 
 
-uint16_t MODBUSARRAY[200];
+uint16_t MODBUSARRAY[800];
 
 //OBJECTS
 uint8_t *BMSAR;
@@ -86,26 +76,24 @@ TaskHandle_t SERIALMONITORTASK;
 
 
 //VARIABLES
-double TerminalVoltageArray[17];
-double TerminalCurrentArray[17];
-double TerminalTempArray[17];
-double TerminalSOCArray[17];
-double RemainingCapacity[17];
-int ChargeStatusArray[17];
-int DischargeStatusArray[17];
-int AlarmStatusArray[17];
-double MaxCellArray[17];
-double MinCellArray[17];
+double TerminalVoltageArray[30];
+double TerminalCurrentArray[30];
+double TerminalTempArray[30];
+double TerminalSOCArray[30];
+double RemainingCapacity[30];
+int ChargeStatusArray[30];
+int DischargeStatusArray[30];
+int AlarmStatusArray[30];
+double MaxCellArray[30];
+double MinCellArray[30];
 float String1Current = 0;
 float String1Voltage = 0;
 float String1SOC = 0;
 float String1CurrentCal = 0;
 float String1VoltageCal = 0;
 float String1SOCCal = 0;
-
 float String1TempCal = 0;
 float String1Temp = 0;
-
 float String2Current = 0;
 float String2Voltage = 0;
 float String2SOC = 0;
@@ -142,47 +130,32 @@ float LowVoltageAlarmStart = 485;
 float LowVoltageAlarmStop = 490;
 float HighTempAlarmStart = 40;
 float HighTempAlarmStop = 35;
-
 bool Rack1ChargeRelay = true;
 bool Rack1DischargeRelay = true;
 bool Bypass1Relay = true;
-
-
 bool Rack2ChargeRelay = true;
 bool Rack2DischargeRelay = true;
 bool Bypass2Relay = true;
-
 bool Fan1 = true;
 bool OutputDry = true;
-
-
 bool Rack1ChargeRelayCal = true;
 bool Rack1DischargeRelayCal = true;
 bool Bypass1RelayCal = true;
 bool Fan1Cal = true;
 bool OutputDryCal = true;
-
 bool Rack2ChargeRelayCal = true;
 bool Rack2DischargeRelayCal = true;
 bool Bypass2RelayCal = true;
 bool Fan2Cal = true;
 bool OutputDryCa2 = true;
-
-
-
-
 bool EnableForce = false;
 bool ForcedRack1ChargeRelay = false;
 bool ForcedRack1DischargeRelay = false;
 bool ForcedBypass1Relay = false;
 bool ForcedFan1 = false;
 bool ForcedPrecharge = false;
-String FirmwareVer = "1.0.0";
+String FirmwareVer = "1.0.2";
 String SerialProcessor = "";
-
-
-
-
 int SubID = 1;
 int ModuleSize = 10;
 //how many module communicates subcontroller
@@ -191,30 +164,19 @@ int InverterType = 0; //
 //1: ATESS
 int MaximumModuleVolt = 54;
 int MaximumStringVolt = 1000;
-
 bool ChargeRelay = true;
 bool DischargeRelay = true;
 int Heartbeat = 0;
-
-
 float String1MaxCell = 0;
 float String1MinCell = 500;
 int MaxCurrent = 100;
-
 int CanbusBaudRate = 250;
 int ModbusBaudRate = 9600;
-
-
-
 
 //adc read default
 uint16_t SDA_0 = 33;
 uint16_t SCL_0 = 32;
-
-//char receivedChar;
 String receivedString;
-//boolean newData = false;
-
 String SerialNumber = "C"; // ENC-DATE-NUMBER
 
 void setup() {
@@ -255,23 +217,14 @@ void setup() {
   MaximumStringVolt = preferences.getInt("MSTV", 1000);
   CanbusBaudRate = preferences.getInt("CBR", 250);
   ModbusBaudRate = preferences.getInt("MBR", 9600);
-  BoardVersion = preferences.getInt("BV", 1);
-
-  //Serial.println("Setup Board Version:" + String(BoardVersion));
-
-  // update on 6/27/2024 STARTED
+  BoardVersion = preferences.getInt("BV", 0);
   SOCLockEnable = preferences.getBool("SLE", false);
   SOCLockValue = preferences.getInt("SLV", 0);
-  // update on 6/27/2024 ended
   preferences.end();
 
-
-
   if (BoardVersion) {
-
     SDA_0 = 33;
     SCL_0 = 32;
-
     pinMode(19, OUTPUT); // Charge1
     pinMode(18, OUTPUT);//Discharge1
     pinMode(21, OUTPUT);//Bypass1
@@ -280,11 +233,8 @@ void setup() {
     digitalWrite(26, false);
   }
   else {
-
-
     SDA_0 = 21;
     SCL_0 = 22;
-
     pinMode(5, OUTPUT); // Charge1
     pinMode(19, OUTPUT);//Discharge1
     pinMode(15, OUTPUT);//Bypass1
@@ -292,10 +242,6 @@ void setup() {
     pinMode(18, OUTPUT);//Precharge
   }
 
-
-
-  //Serial.println("setup output dry:" + String(OutputDry));
-  //
   //CREATING TASK FOR CANBUS_____________________________________________________________________________________________________
   xTaskCreatePinnedToCore(
     INVERTERCANBUSTASK_CODE,   /* Task function. */
@@ -385,10 +331,7 @@ void INVERTERCANBUSTASK_CODE( void * pvParameters ) {
   can_start(CanbusBaudRate);
 
   for (;;) {
-
     if (String1MaxCell  < 5  && String1MinCell  < 5  && String1SOC < 105  && abs(String1Current) < 200) {
-
-
       delay(200);
 
       if (InverterType == 1) {
@@ -469,11 +412,8 @@ void CANBUSTASK_CODE( void * pvParameters ) {
 
 
   for (;;) {
-
     CANBUS_PULSE++;
-
     for (int i = 0; i < ModuleSize + 1; i++) {
-
       BMS_recieve(0x90, i + 1);
       BMS_recieve(0x92, i + 1);
       BMS_recieve(0x91, i + 1);
@@ -483,9 +423,7 @@ void CANBUSTASK_CODE( void * pvParameters ) {
 
 
       if (CanSim == 0) {
-
         if (( abs(BMS_can.current_can - 30000) * 0.1 < 400)  && (abs(BMS_can.discharge_can) < 2) && (abs(BMS_can.discharge_can) < 2) && ((BMS_can.max_cell_temp_can - 40) < 80) && ((BMS_can.max_cell_temp_can - 40) > -5) && (abs(BMS_can.sum_voltage_can * 0.1) < 70)) {
-
           if (Heartbeat < 256) {
             Heartbeat++;
           }
@@ -503,9 +441,7 @@ void CANBUSTASK_CODE( void * pvParameters ) {
           MaxCellArray[i] = BMS_can.max_cell_volt_can * 0.001;
           MinCellArray[i] = BMS_can.min_cell_volt_can * 0.001;
           AlarmCode = 0;
-
         }
-
         else {
           if (i < ModuleSize) {
             Heartbeat = 0;
@@ -516,14 +452,12 @@ void CANBUSTASK_CODE( void * pvParameters ) {
       }
 
       else {// SIMULATION
-
         if (Heartbeat < 256) {
           Heartbeat++;
         }
         else {
           Heartbeat = 0;
         }
-
         TerminalVoltageArray[i] = random(5000, 5400) * 0.01;
         TerminalCurrentArray[i] = random(1, 10);
         TerminalTempArray[i] = random(200, 300) * 0.1;
@@ -536,9 +470,7 @@ void CANBUSTASK_CODE( void * pvParameters ) {
         MinCellArray[i] = random(270, 300) * 0.01;
         AlarmCode = 0;
       }
-
       delay(100);
-
     }
 
     /////Rack #1////////////////////////
@@ -571,21 +503,12 @@ void CANBUSTASK_CODE( void * pvParameters ) {
     String1TempCal = String1TempCal / ModuleSize;
     String1Temp = String1TempCal;
 
-
-
-
-
-    //////////////////////////////inverter slave
-
-
     String1MaxCell = 0;
     for (int i = 0; i < ModuleSize; i++) {
       if (MaxCellArray[i] > String1MaxCell) {
         String1MaxCell = MaxCellArray[i];
       }
     }
-
-
     String1MinCell = 500;
     for (int i = 0; i < ModuleSize; i++) {
       if (MinCellArray[i] < String1MinCell) {
@@ -597,8 +520,6 @@ void CANBUSTASK_CODE( void * pvParameters ) {
 
 
 void BREAKERCONTROLTASK_CODE( void * pvParameters ) {
-  // Serial.println("BREAKERCONTROLTASK TASK STARTED");
-
   TaskArray[4] = true;
   float CurrentMillisBreaker = 0;
   float PreviousMillisBreaker = 0;
@@ -609,38 +530,27 @@ void BREAKERCONTROLTASK_CODE( void * pvParameters ) {
   float PreviousMillisBreaker2 = 0;
   bool TakeOver12 = false;
   bool TakeOver22 = false;
-
   float DischargeCounter22 = 0;
-
-
 
   for (;;) {
     BREAKER_PULSE++;
-
     //Charge Control#1
     Rack1ChargeRelayCal = true;
     if (String1Voltage < HighVoltageAlarmStart) {
-
       for (int i = 0; i < ModuleSize; i++) {
         Rack1ChargeRelayCal = Rack1ChargeRelayCal && ChargeStatusArray[i];
       }
       Rack1ChargeRelay = Rack1ChargeRelayCal;
-
       SystemAlarm1 = "NoAlarm";
     }
     else {
-
       SystemAlarm1 = "charge relay#1 is off due to high voltage:" + String(String1Voltage) + ">" + String(HighVoltageAlarmStart);
-
       Rack1ChargeRelay = false;
     }
-
-
     if (SOCLockEnable)
     {
       if (String1SOC > SOCLockValue)
       {
-
         //Discharge Control#1
         if (String1Voltage > LowVoltageAlarmStart) {
           Rack1DischargeRelayCal = true;
@@ -648,10 +558,10 @@ void BREAKERCONTROLTASK_CODE( void * pvParameters ) {
             Rack1DischargeRelayCal = Rack1DischargeRelayCal && DischargeStatusArray[i];
           }
           Rack1DischargeRelay = Rack1DischargeRelayCal;
-          SystemAlarm1 = "NoAlarm";
+          SystemAlarm2 = "NoAlarm";
         }
         else {
-          SystemAlarm1 = "discharge relay#1 is off due to low voltage:" + String(String1Voltage) + "<" + String(LowVoltageAlarmStart);
+          SystemAlarm2 = "discharge relay#1 is off due to low voltage:" + String(String1Voltage) + "<" + String(LowVoltageAlarmStart);
           //Serial.println(String1Voltage);
           Rack1DischargeRelay = false;
         }
@@ -672,33 +582,29 @@ void BREAKERCONTROLTASK_CODE( void * pvParameters ) {
           Rack1DischargeRelayCal = Rack1DischargeRelayCal && DischargeStatusArray[i];
         }
         Rack1DischargeRelay = Rack1DischargeRelayCal;
-        SystemAlarm1 = "NoAlarm";
+        SystemAlarm2 = "NoAlarm";
       }
       else {
-        SystemAlarm1 = "discharge relay#1 is off due to low voltage:" + String(String1Voltage) + "<" + String(LowVoltageAlarmStart);
+        SystemAlarm2 = "discharge relay#1 is off due to low voltage:" + String(String1Voltage) + "<" + String(LowVoltageAlarmStart);
         //Serial.println(String1Voltage);
         Rack1DischargeRelay = false;
       }
 
     }
 
-
     //Take over conditions are defined for Discharge Control
     TakeOver1 = !Rack1DischargeRelay;
     TakeOver2 = String1Voltage < LowVoltageAlarmStart;
 
     if ((TakeOver1 || TakeOver2)) {
-
       CurrentMillisBreaker = millis();
       DischargeCounter2 = DischargeCounter2 + (CurrentMillisBreaker - PreviousMillisBreaker) * 0.001;
-
 
       SystemWarning1 = "Discharge takeover counter running:" + String(DischargeCounter2);
     }
     else {
       SystemWarning1 = "NoWarning";
     }
-
     if (DischargeCounter2 > 600 && DischargeCounter2 < 690) {
       if (String1Current >= -2) {
         Rack1DischargeRelay = true;
@@ -709,19 +615,14 @@ void BREAKERCONTROLTASK_CODE( void * pvParameters ) {
         DischargeCounter2 = 0;
       }
     }
-
     if (DischargeCounter2 > 690) {
       SystemWarning1 = "Discharge#1 take over is finished due to timeout";
       DischargeCounter2 = 0;
       Rack1DischargeRelay = !(TakeOver1 || TakeOver2);
     }
-
     if (DischargeCounter2 <= 600) {
-
       Rack1DischargeRelay = !(TakeOver1 || TakeOver2);
     }
-
-
     //Bypass#1 Control
     if (String1Current < 0 && Rack1DischargeRelay && (abs(String1Current) > 20)) {
       Bypass1Relay = true;
@@ -735,13 +636,8 @@ void BREAKERCONTROLTASK_CODE( void * pvParameters ) {
       Bypass1Relay = false;
       SystemWarning2 = "NoWarning";
     }
-
-
     if (BoardVersion) {
-
       if (!FORCE) {
-
-
         digitalWrite(18, Rack1ChargeRelay);
         digitalWrite(19, Rack1DischargeRelay);
         digitalWrite(21, Bypass1Relay);
@@ -749,7 +645,6 @@ void BREAKERCONTROLTASK_CODE( void * pvParameters ) {
         digitalWrite(5, prechargeStatus);
       }
       else {
-
         //        SystemWarning = "CAUTION !!Breakers are forced!!!!!!!!!!!";
         digitalWrite(18, ForcedRack1ChargeRelay);
         digitalWrite(19, ForcedRack1DischargeRelay);
@@ -757,9 +652,6 @@ void BREAKERCONTROLTASK_CODE( void * pvParameters ) {
         digitalWrite(22, ForcedFan1);
         digitalWrite(5, ForcedPrecharge);
       }
-
-
-
     }
     else {
       if (!FORCE) {
@@ -771,79 +663,73 @@ void BREAKERCONTROLTASK_CODE( void * pvParameters ) {
         digitalWrite(26, Fan1);
         digitalWrite(18, prechargeStatus);
       }
-
       else {
         SystemWarning3 = "CAUTION !!Breakers are forced!!!!!!!!!!!";
-
-
         digitalWrite(5, ForcedRack1ChargeRelay);
         digitalWrite(19, ForcedRack1DischargeRelay);
         digitalWrite(15, ForcedBypass1Relay);
         digitalWrite(26, ForcedFan1);
         digitalWrite(18, ForcedPrecharge);
       }
-
     }
-
-
-
     PreviousMillisBreaker = millis();
     delay(250);
   }
-
 }
 
 
 void ANALOGTASK_CODE( void * pvParameters ) {
   TaskArray[3] = true;
-
   int PrechargeCounter2024 = 0;
-
   int CurrentMillis = 0;
   int PreviousMillis = 0;
-//
-//  Serial.println("analog Board Version:" + String(BoardVersion));
-//  Serial.println("SDA:" + String(SDA_0));
-//  Serial.println("SCL:" + String(SCL_0));
-
 
   I2C_0 .begin(SDA_0, SCL_0);
   delay(500);
 
-
   for (;;) {
-
     ANALOG_PULSE++;
-
     result = i2c_search(0x48);
 
-    //Serial.println("I2C Result:" + String(result));
     delay(100);
 
     if (result == 1)
     {
-      SystemAlarm3 = "NoAlarm";
-      send_config(1);
-      delay(250);
-      temp2 = (adc_value / 0.01);
-      // Serial.println("Config #1 (temp2) ADC:" + String(adc_value));
+      if (BoardVersion == 0) {
+        SystemAlarm3 = "NoAlarm";
+        send_config(1);
+        delay(250);
+        prechargeVolt = (adc_value * 100);
+       // Serial.println("Config#1:" + String(adc_value));
+        send_config(2);
+        delay(250);
+        temp1 = (adc_value) * 100;
+   //     Serial.println("Config#2:" + String(adc_value));
+        send_config(3);
+        delay(250);
+        temp2 = adc_value;
+    //    Serial.println("Config#3:" + String(adc_value));
+      }
+
+      else {
+        SystemAlarm3 = "NoAlarm";
+        send_config(1);
+        delay(250);
+      //  Serial.println("Config#1:" + String(adc_value));
+        temp1 = (adc_value)*100;
+        send_config(2);
+        delay(250);
+       //  Serial.println("Config#2:" + String(adc_value));
+        prechargeVolt = (adc_value) * 100;
+        send_config(3);
+        delay(250);
+      //   Serial.println("Config#3:" + String(adc_value));
+        temp2 = adc_value * 100;
+      }
 
 
 
-      send_config(2);
-      delay(250);
 
-      temp1 = (adc_value) * 100;
-      //Serial.println("Config #2 (temp1) ADC:" + String(temp1));
-
-
-
-      send_config(3);
-      delay(250);
-      prechargeVolt = adc_value;
-      // Serial.println("Config #3 (precharge) ADC:" + String(adc_value));
-
-      //////precharge algrithm
 
 
       if (prechargeVolt > 0.2) {
@@ -851,20 +737,15 @@ void ANALOGTASK_CODE( void * pvParameters ) {
         if (PrechargeCounter2024 > 20)
         {
           prechargeStatus = false;
-          //   Serial.println("precharge is closed");
         }
-        //  Serial.println("precharge counter:" + String(PrechargeCounter2024));
       }
-
       else {
-        //   Serial.println("There is no enough voltage detected for precharge!");
       }
     }
 
     else {
       SystemAlarm3 = "I2C is failed";
     }
-
   }
 
 }
@@ -1008,10 +889,6 @@ void BT_CODE( void * pvParameters ) {
         SerialBT.println("InverterType:" + String(InverterType));
         message = "";
       }
-
-
-
-
 
       //GET fIRMWARE NUMBER ////////////////////////////////
       param_start2 = message.indexOf("GETFW");
@@ -1426,8 +1303,6 @@ void SERIALMONITOR_CODE( void * pvParameters ) {
   TaskArray[6] = true;
 
 
-
-
   for (;;) {
     recvOneChar();
     showNewData();
@@ -1464,14 +1339,9 @@ void analyseNewData() {
 
 
   int Processor1, Processor2;
-
-
   int ModuleNumber;
 
   if (receivedString == "-SHOWPULSES") {
-
-
-
   }
 
   if (receivedString == "-SHOWSUMMARY") {
@@ -1564,8 +1434,15 @@ void analyseNewData() {
     Serial.println("         String1Voltage:" + String(String1Voltage));
     Serial.println("         String1Current:" + String(String1Current));
     Serial.println("         MaxCurrent:" + String(MaxCurrent));
-    //    Serial.println("         SystemAlarm:" + String(SystemAlarm));
-    //    Serial.println("         SystemWarning:" + String(SystemWarning));
+
+    Serial.println("         SystemAlarm #1:" + String(SystemAlarm1));
+    Serial.println("         SystemAlarm #2:" + String(SystemAlarm2));
+    Serial.println("         SystemAlarm #3:" + String(SystemAlarm3));
+    Serial.println("         SystemWarning #1:" + String(SystemWarning1));
+    Serial.println("         SystemWarning #2:" + String(SystemWarning2));
+    Serial.println("         SystemWarning #3:" + String(SystemWarning3));
+
+
 
 
     Serial.println("         I2C Working Status:" + String(result));
@@ -1574,10 +1451,6 @@ void analyseNewData() {
     Serial.println("         I2C3#:" + String(prechargeVolt));
     Serial.println("         ANALOG_HEARTBEAT#:" + String(ANALOG_PULSE));
     Serial.println("         FORCE Status#:" + String(FORCE));
-
-
-
-
 
     Serial.println();
     Serial.println("   ---   SUBSTRING LIST END  ---   ");
@@ -1593,7 +1466,7 @@ void analyseNewData() {
     RUNRT = false;
   }
 
-  else if (receivedString == "-RUNSTRING") {
+  else if (receivedString == "- ") {
     Serial.println("   ---   RUNSTRING ACK  ---   ");
     RUNSTRING = true;
   }
@@ -1610,13 +1483,7 @@ void analyseNewData() {
     RUNSTRING = false;
   }
 
-
-
-
-
-
   else if (receivedString.indexOf("GETMOD") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("GETMOD") + 6, receivedString.indexOf("#"));
     ModuleNumber = SerialProcessor.toInt();
     Serial.println("ID" + String(ModuleNumber) + "/" + "Voltage:" + String(TerminalVoltageArray[ModuleNumber - 1]) + "/" +
@@ -1631,14 +1498,7 @@ void analyseNewData() {
 
   }
 
-
-
-
-
-
-
   else if (receivedString.indexOf("SETID") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("SETID") + 5, receivedString.indexOf("#"));
     SubID = SerialProcessor.toInt();
     Serial.println("ID:" + String(SubID));
@@ -1652,7 +1512,6 @@ void analyseNewData() {
   }
 
   else if (receivedString.indexOf("SETMDS") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("SETMDS") + 6, receivedString.indexOf("#"));
     ModuleSize = SerialProcessor.toInt();
     Serial.println("ModuleSize:" + String(ModuleSize));
@@ -1663,7 +1522,6 @@ void analyseNewData() {
   }
 
   else if (receivedString.indexOf("SETMSTV") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("SETMSTV") + 7, receivedString.indexOf("#"));
     MaximumStringVolt = SerialProcessor.toInt();
     Serial.println("MaximumStringVolt:" + String(MaximumStringVolt));
@@ -1674,7 +1532,6 @@ void analyseNewData() {
   }
 
   else if (receivedString.indexOf("SETIT") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("SETIT") + 5, receivedString.indexOf("#"));
     InverterType = SerialProcessor.toInt();
     Serial.println("InverterType:" + String(InverterType));
@@ -1685,7 +1542,6 @@ void analyseNewData() {
   }
 
   else if (receivedString.indexOf("SETSN") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("SETSN") + 5, receivedString.indexOf("#"));
     SerialNumber = SerialProcessor.toInt();
     Serial.println("SerialNumber:" + String(SerialNumber));
@@ -1697,7 +1553,6 @@ void analyseNewData() {
 
 
   else if (receivedString.indexOf("HTST") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("HTST") + 4, receivedString.indexOf("#"));
     HighTempAlarmStart = SerialProcessor.toInt();
     Serial.println("HighTempAlarmStart:" + String(HighTempAlarmStart));
@@ -1708,7 +1563,6 @@ void analyseNewData() {
   }
 
   else if (receivedString.indexOf("HTSP") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("HTSP") + 4, receivedString.indexOf("#"));
     HighTempAlarmStop = SerialProcessor.toInt();
     Serial.println("HighTempAlarmStop:" + String(HighTempAlarmStop));
@@ -1720,7 +1574,6 @@ void analyseNewData() {
 
 
   else if (receivedString.indexOf("HVST") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("HVST") + 4, receivedString.indexOf("#"));
     HighVoltageAlarmStart = SerialProcessor.toInt();
     Serial.println("HighVoltageAlarmStart:" + String(HighVoltageAlarmStart));
@@ -1731,7 +1584,6 @@ void analyseNewData() {
   }
 
   else if (receivedString.indexOf("HVSP") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("HVSP") + 4, receivedString.indexOf("#"));
     HighVoltageAlarmStop = SerialProcessor.toInt();
     Serial.println("HighVoltageAlarmStop:" + String(HighVoltageAlarmStop));
@@ -1742,7 +1594,6 @@ void analyseNewData() {
   }
 
   else if (receivedString.indexOf("LVST") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("LVST") + 4, receivedString.indexOf("#"));
     LowVoltageAlarmStart = SerialProcessor.toInt();
     Serial.println("LowVoltageAlarmStart:" + String(LowVoltageAlarmStart));
@@ -1753,7 +1604,6 @@ void analyseNewData() {
   }
 
   else if (receivedString.indexOf("LVSP") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("LVSP") + 4, receivedString.indexOf("#"));
     LowVoltageAlarmStop = SerialProcessor.toInt();
     Serial.println("LowVoltageAlarmStop:" + String(LowVoltageAlarmStop));
@@ -1764,7 +1614,6 @@ void analyseNewData() {
   }
 
   else if (receivedString.indexOf("SETMAXCURRENT") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("SETMAXCURRENT") + 13, receivedString.indexOf("#"));
     MaxCurrent = SerialProcessor.toInt();
     Serial.println("MaxCurrent:" + String(MaxCurrent));
@@ -1775,7 +1624,6 @@ void analyseNewData() {
   }
 
   else if (receivedString.indexOf("SETCBR") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("SETCBR") + 6, receivedString.indexOf("#"));
     CanbusBaudRate = SerialProcessor.toInt();
     Serial.println("CanbusBaudRate:" + String(CanbusBaudRate));
@@ -1805,7 +1653,6 @@ void analyseNewData() {
   }
 
   else if (receivedString.indexOf("FC") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("FC") + 2, receivedString.indexOf("#"));
     FORCE = SerialProcessor.toInt();
     Serial.println("FORCE:" + String(FORCE));
@@ -1819,7 +1666,6 @@ void analyseNewData() {
 
 
   else if (receivedString.indexOf("CH") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("CH") + 2, receivedString.indexOf("#"));
     ForcedRack1ChargeRelay = SerialProcessor.toInt();
     Serial.println("ForcedRack1ChargeRelay:" + String(ForcedRack1ChargeRelay));
@@ -1828,7 +1674,6 @@ void analyseNewData() {
 
 
   else if (receivedString.indexOf("DS") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("DS") + 2, receivedString.indexOf("#"));
     ForcedRack1DischargeRelay = SerialProcessor.toInt();
     Serial.println("ForcedRack1DischargeRelay:" + String(ForcedRack1DischargeRelay));
@@ -1837,7 +1682,6 @@ void analyseNewData() {
 
 
   else if (receivedString.indexOf("BP") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("BP") + 2, receivedString.indexOf("#"));
     ForcedBypass1Relay = SerialProcessor.toInt();
     Serial.println("ForcedBypass1Relay:" + String(ForcedBypass1Relay));
@@ -1846,7 +1690,6 @@ void analyseNewData() {
 
 
   else if (receivedString.indexOf("FN") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("FN") + 2, receivedString.indexOf("#"));
     ForcedFan1 = SerialProcessor.toInt();
     Serial.println("ForcedFan1:" + String(ForcedFan1));
@@ -1855,7 +1698,6 @@ void analyseNewData() {
 
 
   else if (receivedString.indexOf("PC") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("PC") + 2, receivedString.indexOf("#"));
     ForcedPrecharge = SerialProcessor.toInt();
     Serial.println("ForcedPrecharge:" + String(ForcedPrecharge));
@@ -1886,7 +1728,6 @@ void analyseNewData() {
 
 
   else if (receivedString.indexOf("SETSLE") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("SETSLE") + 6, receivedString.indexOf("#"));
     SOCLockEnable = SerialProcessor.toInt();
     Serial.println("SOCLockEnable:" + String(SOCLockEnable));
@@ -1898,7 +1739,6 @@ void analyseNewData() {
 
 
   else if (receivedString.indexOf("SETSLV") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("SETSLV") + 6, receivedString.indexOf("#"));
     SOCLockValue = SerialProcessor.toInt();
     Serial.println("SOCLockValue:" + String(SOCLockValue));
@@ -1909,7 +1749,6 @@ void analyseNewData() {
   }
 
   else if (receivedString.indexOf("SETBV") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("SETBV") + 5, receivedString.indexOf("#"));
     BoardVersion = SerialProcessor.toInt();
     Serial.println("BoardVersion:" + String(BoardVersion));
@@ -1922,37 +1761,18 @@ void analyseNewData() {
     delay(1000);
     ESP.restart();
   }
-
-
-    else if (receivedString.indexOf("GETBV") != -1 && receivedString.indexOf("#") != -1) {
-
+  else if (receivedString.indexOf("GETBV") != -1 && receivedString.indexOf("#") != -1) {
     SerialProcessor = receivedString.substring(receivedString.indexOf("GETBV") + 5, receivedString.indexOf("#"));
-    Serial.println("BoardVersion:"+String(BoardVersion));
+    Serial.println("BoardVersion:" + String(BoardVersion));
     receivedString = "";
-
   }
-
-
-
-  
-
-
-  //mmmmmmmmmmmmmmmmm
-
-
-
   else if (receivedString.indexOf("RESET") != -1 && receivedString.indexOf("#") != -1) {
     Serial.println("SYSTEM WILL RESET!");
     receivedString = "";
     delay(1000);
     ESP.restart();
   }
-
-
-
-
   else if (receivedString.indexOf("GETMOD") != -1 && receivedString.indexOf("#") != -1) {
-
     SerialProcessor = receivedString.substring(receivedString.indexOf("GETMOD") + 6, receivedString.indexOf("#"));
     ModuleNumber = SerialProcessor.toInt();
 
@@ -1965,11 +1785,7 @@ void analyseNewData() {
                    "Alarm:" + String(AlarmStatusArray[ModuleNumber - 1]) + "/" +
                    "Heartbeat:" + String(Heartbeat) + "#");
   }
-
-
-
   else if (receivedString.indexOf("GETSTRING") != -1 && receivedString.indexOf("#") != -1) {
-
     Serial.println("ChargeRack#:" + String(Rack1ChargeRelay) + "/" +
                    "DischargeRack#:" + String(Rack1DischargeRelay) + "/" +
                    "BypassRack#:" + String(Bypass1Relay) + "/" +
@@ -1987,8 +1803,6 @@ void analyseNewData() {
                    "I2C3#:" + String(prechargeVolt) + "/" +
                    "AH#:" + String(ANALOG_PULSE) + "#" );
   }
-
-
   else
   {
     Serial.println("Invalid Command Received!, please try commands below:");
@@ -2026,8 +1840,6 @@ void analyseNewData() {
   }
 
 }
-
-
 void ContinuousOperations() {
   if (RUNRT) {
     Serial.println();
@@ -2049,11 +1861,9 @@ void ContinuousOperations() {
     Serial.println("   ---   REALTIME SYSTEM DATA  END  ---   ");
     Serial.println();
   }
-
-
   if (RUNSTRING) {
     Serial.println();
-    Serial.println("   ---   SUBSTRING LIST START  ---   ");
+    Serial.println("   ---   SUBSTRING LIST START-TEST ---   ");
     Serial.println();
     Serial.println("         ChargeRack#1:" + String(Rack1ChargeRelay) );
     Serial.println("         DischargeRack#1:" + String(Rack1DischargeRelay));
@@ -2069,14 +1879,11 @@ void ContinuousOperations() {
     Serial.println("         String1Voltage:" + String(String1Voltage));
     Serial.println("         String1Current:" + String(String1Current));
     Serial.println("         MaxCurrent:" + String(MaxCurrent));
-    //    Serial.println("         SystemAlarm:" + String(SystemAlarm));
-    //    Serial.println("         SystemWarning:" + String(SystemWarning));
     Serial.println("         I2C Working Status:" + String(result));
     Serial.println("         I2C1#:" + String(temp1));
     Serial.println("         I2C2#:" + String(temp2));
     Serial.println("         I2C3#:" + String(prechargeVolt));
     Serial.println("         ANALOG_HEARTBEAT#:" + String(ANALOG_PULSE));
-
     Serial.println("         FORCE Status#:" + String(FORCE));
     Serial.println();
     Serial.println("   ---   SUBSTRING LIST END  ---   ");
