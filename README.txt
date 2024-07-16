@@ -10,6 +10,20 @@ Firmware Version: 1.0.0
 **************************************************************
 
 
+Revision Date: 7/16/2024
+Firmware Version: 1.0.2
+
+
+
+**UPDATE LOG**
+
+- Alarm logs bug resolved
+- Bluetooth conection issee is resolved
+- 30 id communication issue is resolved
+
+**************************************************************
+
+
 1. Setup and Configuration:
 
 Includes: Necessary libraries for hardware interactions, preferences storage, CAN bus communication, Bluetooth, and Modbus are included.
