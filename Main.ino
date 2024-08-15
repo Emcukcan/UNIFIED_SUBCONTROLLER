@@ -1317,16 +1317,16 @@ void MODBUSTASK_CODE( void * pvParameters ) {
     MODBUSARRAY[ModuleSize * 8 + 7] = String1Voltage * 10;
     MODBUSARRAY[ModuleSize * 8 + 8] = String1Current * 10;
     MODBUSARRAY[ModuleSize * 8 + 9] = String1SOC * 10;
-    MODBUSARRAY[ModuleSize * 9 + 0] = String1Temp * 10;
-    MODBUSARRAY[ModuleSize * 9 + 1] = (String1MaxCell - String1MinCell) * 100;
+    MODBUSARRAY[ModuleSize * 8 + 10] = String1Temp * 10;
+    MODBUSARRAY[ModuleSize * 8 + 11] = (String1MaxCell - String1MinCell) * 100;
 
 
 
 
-    MODBUSARRAY[ModuleSize * 9 + 2] = TerminalVoltageArray[ModuleSize] * 10;
-    MODBUSARRAY[ModuleSize * 9 + 3] = TerminalCurrentArray[ModuleSize] * 10;
-    MODBUSARRAY[ModuleSize * 9 + 4] = TerminalTempArray[ModuleSize] * 10;
-    MODBUSARRAY[ModuleSize * 9 + 5] = TerminalSOCArray[ModuleSize] * 10;
+    MODBUSARRAY[ModuleSize * 8 + 12] = TerminalVoltageArray[ModuleSize] * 10;
+    MODBUSARRAY[ModuleSize * 8 + 13] = TerminalCurrentArray[ModuleSize] * 10;
+    MODBUSARRAY[ModuleSize * 8 + 14] = TerminalTempArray[ModuleSize] * 10;
+    MODBUSARRAY[ModuleSize * 8 + 15] = TerminalSOCArray[ModuleSize] * 10;
 
     slave.poll( MODBUSARRAY, ModuleSize * 10);
     delay(100);
