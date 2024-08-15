@@ -76,16 +76,16 @@ TaskHandle_t SERIALMONITORTASK;
 
 
 //VARIABLES
-double TerminalVoltageArray[30];
-double TerminalCurrentArray[30];
-double TerminalTempArray[30];
-double TerminalSOCArray[30];
-double RemainingCapacity[30];
-int ChargeStatusArray[30];
-int DischargeStatusArray[30];
-int AlarmStatusArray[30];
-double MaxCellArray[30];
-double MinCellArray[30];
+double TerminalVoltageArray[40];
+double TerminalCurrentArray[40];
+double TerminalTempArray[40];
+double TerminalSOCArray[40];
+double RemainingCapacity[40];
+int ChargeStatusArray[40];
+int DischargeStatusArray[40];
+int AlarmStatusArray[40];
+double MaxCellArray[40];
+double MinCellArray[40];
 float String1Current = 0;
 float String1Voltage = 0;
 float String1SOC = 0;
@@ -178,6 +178,7 @@ uint16_t SDA_0 = 33;
 uint16_t SCL_0 = 32;
 String receivedString;
 String SerialNumber = "C"; // ENC-DATE-NUMBER
+String HardwareSerial = "XXX-XXX";
 
 void setup() {
   RXS = 16;
@@ -200,6 +201,7 @@ void setup() {
   ESP_ERROR_CHECK(ret);
 
 
+  HardwareSerial = getHardwareSerial();
 
   preferences.begin("my-app", false);
   HighVoltageAlarmStart = preferences.getInt("HVST", 538);
@@ -330,12 +332,35 @@ void INVERTERCANBUSTASK_CODE( void * pvParameters ) {
   TaskArray[0] = true;
   can_start(CanbusBaudRate);
 
+  float String1MaxCellModbus = 500;
+  float String1MinCellModbus = 500;
+
   for (;;) {
-    if (String1MaxCell  < 5  && String1MinCell  < 5  && String1SOC < 105  && abs(String1Current) < 200) {
-      delay(200);
+
+
+    //      Serial.println("String1MaxCellCANBUS:" + String(String1MaxCell));
+    //      Serial.println("String1MinCellCANBUS:" + String(String1MinCell));
+
+
+    if (String1MaxCell < 4.1 && String1MaxCell > 2.5) {
+      String1MaxCellModbus = String1MaxCell;
+    }
+
+    if (String1MinCell < 4.1 && String1MinCell > 2.5) {
+      String1MinCellModbus = String1MinCell;
+    }
+
+
+
+    if (String1MaxCellModbus  < 4.8  && String1MinCellModbus  < 4.8  && String1SOC < 105  && abs(String1Current) < 500 && String1MaxCellModbus  > 2.2 && String1MinCellModbus  > 2.2 && String1Voltage < 1000 && String1Voltage > 90 ) {
+
+      //
+      //      Serial.println("String1MaxCellMODBUS:" + String(String1MaxCellModbus));
+      //      Serial.println("String1MinCellMODBUS:" + String(String1MinCellModbus));
+      //      Serial.println("CANBUS Valid");
 
       if (InverterType == 1) {
-        set_maxvoltage(String1MaxCell, String1MinCell, String1SOC, String1SOC, 0, 0x180150F1);
+        set_maxvoltage(String1MaxCellModbus, String1MinCellModbus, String1SOC, String1SOC, 0, 0x180150F1);
 
         if (String1Voltage < MaximumStringVolt * 0.9) {
           //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
@@ -388,22 +413,32 @@ void INVERTERCANBUSTASK_CODE( void * pvParameters ) {
           //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
           set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0, MaxCurrent, 0x180250F1);
         }
-        delay(200);
+        delay(25);
         //set_groupnumber(uint8_t maxvolt_grpnm, uint8_t maxvolt_packnm, uint8_t maxvolt_boxnm, uint8_t maxtemp_grpnm, uint8_t maxtemp_packnm, uint8_t maxtemp, 0x180350F1);
         set_groupnumber(1, 3, 4, 1, 3, 25, 0x180350F1);
-        delay(200);
+        delay(25);
         set_groupnumbermin(2, 4, 6, 2, 3, 25,  0x180450F1);
 
         set_warnings(4, 0, 0, 0, 0 , 0x180650F1);
-        delay(200);
+        delay(25);
         set_warnings2(0, 0, 0, 0, 0, 0x180750F1);
+        delay(25);
       }
-
       if (InverterType == 0) {  //DEYE AND CANBUS BOARD
         send_inverter(String1SOC, String1Voltage, String1Current,  12);
+        delay(25);
       }
+      SystemAlarm4 = "NoAlarm";
     }
-    delay(200);
+    else {
+      SystemAlarm4 = "Inverter canbus did not executed due to improper reading";
+      //
+      //            Serial.println("String1MaxCellMODBUS:" + String(String1MaxCellModbus));
+      //            Serial.println("String1MinCellMODBUS:" + String(String1MinCellModbus));
+      //            Serial.println("CANBUS Error!!!!!!!!!!!!!!!!!!!!!!!");
+      delay(200);
+    }
+
   }
 }
 
@@ -423,7 +458,9 @@ void CANBUSTASK_CODE( void * pvParameters ) {
 
 
       if (CanSim == 0) {
-        if (( abs(BMS_can.current_can - 30000) * 0.1 < 400)  && (abs(BMS_can.discharge_can) < 2) && (abs(BMS_can.discharge_can) < 2) && ((BMS_can.max_cell_temp_can - 40) < 80) && ((BMS_can.max_cell_temp_can - 40) > -5) && (abs(BMS_can.sum_voltage_can * 0.1) < 70)) {
+        if (( abs(BMS_can.current_can - 30000) * 0.1 < 400)  && (abs(BMS_can.discharge_can) < 2) && (abs(BMS_can.discharge_can) < 2) &&
+            ((BMS_can.max_cell_temp_can - 40) < 80) && ((BMS_can.max_cell_temp_can - 40) > -5) && (abs(BMS_can.sum_voltage_can * 0.1) < 70) &&
+            ((BMS_can.max_cell_volt_can * 0.001) < 5) && ((BMS_can.min_cell_volt_can * 0.001) < 5) && ((BMS_can.sum_voltage_can * 0.1) > 8)) {
           if (Heartbeat < 256) {
             Heartbeat++;
           }
@@ -699,47 +736,46 @@ void ANALOGTASK_CODE( void * pvParameters ) {
         SystemAlarm3 = "NoAlarm";
         send_config(1);
         delay(250);
-        prechargeVolt = (adc_value * 100);
-       // Serial.println("Config#1:" + String(adc_value));
+        prechargeVolt = (adc_value);
+        // Serial.println("Config#1:" + String(adc_value));
         send_config(2);
         delay(250);
         temp1 = (adc_value) * 100;
-   //     Serial.println("Config#2:" + String(adc_value));
+        //     Serial.println("Config#2:" + String(adc_value));
         send_config(3);
         delay(250);
         temp2 = adc_value;
-    //    Serial.println("Config#3:" + String(adc_value));
+        //    Serial.println("Config#3:" + String(adc_value));
       }
 
       else {
         SystemAlarm3 = "NoAlarm";
         send_config(1);
         delay(250);
-      //  Serial.println("Config#1:" + String(adc_value));
-        temp1 = (adc_value)*100;
+        //  Serial.println("Config#1:" + String(adc_value));
+        temp1 = (adc_value) * 100;
         send_config(2);
         delay(250);
-       //  Serial.println("Config#2:" + String(adc_value));
+        //  Serial.println("Config#2:" + String(adc_value));
         prechargeVolt = (adc_value) * 100;
         send_config(3);
         delay(250);
-      //   Serial.println("Config#3:" + String(adc_value));
+        //   Serial.println("Config#3:" + String(adc_value));
         temp2 = adc_value * 100;
       }
 
 
-
-
-
-
       if (prechargeVolt > 0.2) {
+        // Serial.println("Precharge voltage is good!");
         PrechargeCounter2024++;
+        //Serial.println("Precharge counter:"+String(PrechargeCounter2024));
         if (PrechargeCounter2024 > 20)
         {
           prechargeStatus = false;
         }
       }
       else {
+        // Serial.println("Precharge voltage is low:" + String(prechargeVolt));
       }
     }
 
@@ -1225,9 +1261,9 @@ void BT_CODE( void * pvParameters ) {
                          "String1Voltage#:" + String(String1Voltage) + "/" +
                          "String1Current#:" + String(String1Current) + "/" +
                          "I2C Working Status#:" + String(result) + "/" +
-                         "I2C1#:" + String(temp1) + "/" +
-                         "I2C2#:" + String(temp2) + "/" +
-                         "I2C3#:" + String(prechargeVolt) + "/" +
+                         "I2C (Temp#1):" + String(temp1) + "/" +
+                         "I2C (Temp#2):" + String(temp2) + "/" +
+                         "I2C (PrechargeVolt):" + String(prechargeVolt) + "/" +
                          "AH#:" + String(ANALOG_PULSE) + "#" );
         message = "";
       }
@@ -1341,14 +1377,13 @@ void analyseNewData() {
   int Processor1, Processor2;
   int ModuleNumber;
 
-  if (receivedString == "-SHOWPULSES") {
-  }
 
   if (receivedString == "-SHOWSUMMARY") {
 
     Serial.println();
     Serial.println("   ---   SYSTEM SUMMARY START   ---   ");
     Serial.println();
+    Serial.println("         HardwareSerial:" + String(HardwareSerial));
     Serial.println("         BoardVersion:" + String(BoardVersion));
     Serial.println("         SubID:" + String(SubID) );
     Serial.println("         ModuleSize:" + String(ModuleSize));
@@ -1438,9 +1473,12 @@ void analyseNewData() {
     Serial.println("         SystemAlarm #1:" + String(SystemAlarm1));
     Serial.println("         SystemAlarm #2:" + String(SystemAlarm2));
     Serial.println("         SystemAlarm #3:" + String(SystemAlarm3));
+    Serial.println("         SystemAlarm #4:" + String(SystemAlarm4));
     Serial.println("         SystemWarning #1:" + String(SystemWarning1));
     Serial.println("         SystemWarning #2:" + String(SystemWarning2));
     Serial.println("         SystemWarning #3:" + String(SystemWarning3));
+
+
 
 
 
@@ -1803,6 +1841,19 @@ void analyseNewData() {
                    "I2C3#:" + String(prechargeVolt) + "/" +
                    "AH#:" + String(ANALOG_PULSE) + "#" );
   }
+
+  else if  (receivedString.indexOf("-SHOWSERIALNO") != -1) {
+    Serial.println("HardwareSerialNumber:" + HardwareSerial);
+  }
+
+
+
+
+
+
+
+
+
   else
   {
     Serial.println("Invalid Command Received!, please try commands below:");
@@ -1888,4 +1939,33 @@ void ContinuousOperations() {
     Serial.println();
     Serial.println("   ---   SUBSTRING LIST END  ---   ");
   }
+}
+
+
+
+String getHardwareSerial() {
+  //:ESP32s3-0CA8D4
+
+  String MCUtype = "ESP32s3" ;
+  char ssid[14];
+  snprintf(ssid, 14, "%llX", ESP.getEfuseMac());
+  // Serial.println(ssid); //
+  String ssid1 = ssid ; // convert from char to String
+  // Serial.println(ssid1);
+  int StrLen = ssid1.length();
+  // Serial.printf("Length of the string %i characters \r\n",StrLen);
+  String MAC = "";
+  int i = 0; while ( i < 6) {
+    MAC = MAC + ssid1.substring(StrLen - 2 - 2 * i, StrLen - 2 * i) + ":";
+    i++ ;
+  }
+  MAC = MAC.substring(0, 17); // remove last :
+  //Serial.println(MAC);
+  String Serialnumber1 = MCUtype + "-" ;
+  int j = 3; while ( j < 6) {
+    Serialnumber1 = Serialnumber1 + ssid1.substring(StrLen - 2 - 2 * j, StrLen - 2 * j);
+    j++ ;
+  }
+  Serial.println(Serialnumber1);
+  return Serialnumber1;
 }
