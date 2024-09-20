@@ -50,7 +50,8 @@ int BoardVersion = 1;
 bool SOCLockEnable = false;
 int SOCLockValue = 0;
 int CanSim = 0;
-
+float String1MaxCellModbus = 500;
+float String1MinCellModbus = 500;
 //PINS
 #define GEN_RE  0
 
@@ -117,6 +118,10 @@ String SystemWarning6 = "NoWarning";
 String SystemWarning7 = "NoWarning";
 String SystemWarning8 = "NoWarning";
 
+bool MasterStopCharge = false;
+bool MasterStopDischarge = false;
+bool MasterForcePrecharge = false;
+
 
 bool TaskArray[7];
 String TaskStringArray[7] = {"INVERTER-CANBUS", "MODULE-CANBUS", "MODBUS-HOST", "ANALOG-READING", "BREAKER-CONTROL", "BLUETOOTH-CONTROL", "SERIAL-MONITOR"};
@@ -156,8 +161,10 @@ bool ForcedFan1 = false;
 bool ForcedPrecharge = false;
 String FirmwareVer = "1.0.2";
 String SerialProcessor = "";
+int PrechargeCounter2024 = 0;
 int SubID = 1;
 int ModuleSize = 10;
+int SETCANSIM = 0;
 //how many module communicates subcontroller
 int InverterType = 0; //
 //0: DEYE
@@ -179,6 +186,8 @@ uint16_t SCL_0 = 32;
 String receivedString;
 String SerialNumber = "C"; // ENC-DATE-NUMBER
 String HardwareSerial = "XXX-XXX";
+
+bool BluetoothStatus = false;
 
 void setup() {
   RXS = 16;
@@ -222,6 +231,7 @@ void setup() {
   BoardVersion = preferences.getInt("BV", 0);
   SOCLockEnable = preferences.getBool("SLE", false);
   SOCLockValue = preferences.getInt("SLV", 0);
+  SETCANSIM = preferences.getInt("SETCANSIM", 0);
   preferences.end();
 
   if (BoardVersion) {
@@ -332,8 +342,7 @@ void INVERTERCANBUSTASK_CODE( void * pvParameters ) {
   TaskArray[0] = true;
   can_start(CanbusBaudRate);
 
-  float String1MaxCellModbus = 500;
-  float String1MinCellModbus = 500;
+
 
   for (;;) {
 
@@ -342,77 +351,172 @@ void INVERTERCANBUSTASK_CODE( void * pvParameters ) {
     //      Serial.println("String1MinCellCANBUS:" + String(String1MinCell));
 
 
-    if (String1MaxCell < 4.1 && String1MaxCell > 2.5) {
+    if (String1MaxCell < 4.8 && String1MaxCell > 2.2) {
       String1MaxCellModbus = String1MaxCell;
     }
 
-    if (String1MinCell < 4.1 && String1MinCell > 2.5) {
+    if (String1MinCell < 4.8 && String1MinCell > 2.2) {
       String1MinCellModbus = String1MinCell;
     }
 
 
 
-    if (String1MaxCellModbus  < 4.8  && String1MinCellModbus  < 4.8  && String1SOC < 105  && abs(String1Current) < 500 && String1MaxCellModbus  > 2.2 && String1MinCellModbus  > 2.2 && String1Voltage < 1000 && String1Voltage > 90 ) {
+    if (String1MaxCellModbus  < 4.8  && String1MinCellModbus  < 4.8  && String1SOC < 105  && abs(String1Current) < 1000 && String1MaxCellModbus  > 2.2 && String1MinCellModbus  > 2.2 && String1Voltage < 1000 && String1Voltage > 90 ) {
 
       //
       //      Serial.println("String1MaxCellMODBUS:" + String(String1MaxCellModbus));
       //      Serial.println("String1MinCellMODBUS:" + String(String1MinCellModbus));
       //      Serial.println("CANBUS Valid");
 
+//      Serial.println("MAKS VOLT:" + String(MaximumStringVolt));
+//      Serial.println("STRING VOLT:" + String(String1Voltage));
+//      Serial.println("String1SOC:" + String(String1SOC));
+
+
       if (InverterType == 1) {
         set_maxvoltage(String1MaxCellModbus, String1MinCellModbus, String1SOC, String1SOC, 0, 0x180150F1);
 
-        if (String1Voltage < MaximumStringVolt * 0.9) {
-          //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
-          set_totalvoltage(String1Voltage , String1Current , MaxCurrent, MaxCurrent, 0x180250F1);
+
+
+        if (String1Temp < 50) {
+
+          if (String1MaxCellModbus < 3.5) {
+
+            if (String1SOC > 40 && String1SOC < 99) {
+              if (String1Voltage < MaximumStringVolt * 0.9 || String1SOC < 85) {
+                //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
+                set_totalvoltage(String1Voltage , String1Current , MaxCurrent, MaxCurrent, 0x180250F1);
+                //                Serial.println("MAX CURRENT:" + String(MaxCurrent));
+                //                Serial.println("SET CURRENT:" + String(MaxCurrent));
+              }
+
+              else if (String1Voltage >= MaximumStringVolt * 0.9 && String1Voltage < MaximumStringVolt * 0.91) {
+                //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
+                set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.9, MaxCurrent, 0x180250F1);
+                //                Serial.println("MAX CURRENT:" + String(MaxCurrent));
+                //                Serial.println("SET CURRENT:" + String(MaxCurrent * 0.9));
+              }
+
+              else if (String1Voltage >= MaximumStringVolt * 0.91 && String1Voltage < MaximumStringVolt * 0.92 ) {
+                //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
+                set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.8, MaxCurrent, 0x180250F1);
+                //                Serial.println("MAX CURRENT:" + String(MaxCurrent));
+                //                Serial.println("SET CURRENT:" + String(MaxCurrent * 0.8));
+              }
+
+              else if (String1Voltage >= MaximumStringVolt * 0.92 && String1Voltage < MaximumStringVolt * 0.93 ) {
+                //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
+                set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.7, MaxCurrent, 0x180250F1);
+                //                Serial.println("MAX CURRENT:" + String(MaxCurrent));
+                //                Serial.println("SET CURRENT:" + String(MaxCurrent * 0.7));
+              }
+
+              else if (String1Voltage >= MaximumStringVolt * 0.93 && String1Voltage < MaximumStringVolt * 0.94 ) {
+                //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
+                set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.6, MaxCurrent, 0x180250F1);
+                //                Serial.println("MAX CURRENT:" + String(MaxCurrent));
+                //                Serial.println("SET CURRENT:" + String(MaxCurrent * 0.6));
+              }
+
+              else if (String1Voltage >= MaximumStringVolt * 0.94 && String1Voltage < MaximumStringVolt * 0.95 ) {
+                //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float disc7arge_maxcurr ,0x180250F1);
+                set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.5, MaxCurrent, 0x180250F1);
+                //                Serial.println("MAX CURRENT:" + String(MaxCurrent));
+                //                Serial.println("SET CURRENT:" + String(MaxCurrent * 0.5));
+              }
+
+              else if (String1Voltage >= MaximumStringVolt * 0.95 && String1Voltage < MaximumStringVolt * 0.96 ) {
+                //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
+                set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.4, MaxCurrent, 0x180250F1);
+                //                Serial.println("MAX CURRENT:" + String(MaxCurrent));
+                //                Serial.println("SET CURRENT:" + String(MaxCurrent * 0.4));
+              }
+              else if (String1Voltage >= MaximumStringVolt * 0.96 && String1Voltage < MaximumStringVolt * 0.97 ) {
+                //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
+                set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.3, MaxCurrent, 0x180250F1);
+                //                Serial.println("MAX CURRENT:" + String(MaxCurrent));
+                //                Serial.println("SET CURRENT:" + String(MaxCurrent * 0.3));
+              }
+              else if (String1Voltage >= MaximumStringVolt * 0.97 && String1Voltage < MaximumStringVolt * 0.98) {
+                //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
+                set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.2, MaxCurrent, 0x180250F1);
+                //                Serial.println("MAX CURRENT:" + String(MaxCurrent));
+                //                Serial.println("SET CURRENT:" + String(MaxCurrent * 0.2));
+              }
+              else if (String1Voltage >= MaximumStringVolt * 0.985 && String1Voltage < MaximumStringVolt * 0.99 ) {
+                //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
+                set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.1, MaxCurrent, 0x180250F1);
+                //                Serial.println("MAX CURRENT:" + String(MaxCurrent));
+                //                Serial.println("SET CURRENT:" + String(MaxCurrent * 0.1));
+              }
+
+              else if (String1Voltage >= MaximumStringVolt * 0.99 && String1Voltage < MaximumStringVolt ) {
+                //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
+                set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.05, MaxCurrent, 0x180250F1);
+                //                Serial.println("MAX CURRENT:" + String(MaxCurrent));
+                //                Serial.println("SET CURRENT:" + String(MaxCurrent * 0.05));
+              }
+              else if (String1Voltage >= MaximumStringVolt ) {
+                //                Serial.println("MAX CURRENT:" + String(MaxCurrent));
+                //                Serial.println("SET CURRENT:" + String(MaxCurrent * 0));
+                //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
+                set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0, MaxCurrent, 0x180250F1);
+              }
+
+
+              else {
+                Serial.println("oh no!!!!!");
+              }
+            }
+            else if  (String1SOC <= 40) {
+              set_totalvoltage(String1Voltage , String1Current , MaxCurrent, 5, 0x180250F1);
+            }
+            else if  (String1SOC >= 99) {
+              set_totalvoltage(String1Voltage , String1Current , 0, MaxCurrent, 0x180250F1);
+            }
+
+
+
+          }
+          else {
+            set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0, MaxCurrent, 0x180250F1);
+          }
+
+        }
+
+        else {
+          Serial.println("High Temperature Mode!!!!");
+
+          if (String1Temp >= 50 && String1Temp < 51) {
+            set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.5, MaxCurrent * 0.5, 0x180250F1);
+
+          }
+          else  if (String1Temp >= 51 && String1Temp < 52) {
+            set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.35, MaxCurrent * 0.35, 0x180250F1);
+
+          }
+          else  if (String1Temp >= 52 && String1Temp < 53) {
+            set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.30, MaxCurrent * 0.30, 0x180250F1);
+
+          }
+          else  if (String1Temp >= 53 && String1Temp < 54) {
+            set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.20, MaxCurrent * 0.20, 0x180250F1);
+
+          }
+          else  if (String1Temp >= 54 && String1Temp < 55) {
+            set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.10, MaxCurrent * 0.10, 0x180250F1);
+
+          }
+          else  if (String1Temp >= 55) {
+            set_totalvoltage(String1Voltage , String1Current , 0, 0, 0x180250F1);
+
+          }
         }
 
 
-        else if (String1Voltage >= MaximumStringVolt * 0.9 && String1Voltage < MaximumStringVolt * 0.91) {
-          //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
-          set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.9, MaxCurrent, 0x180250F1);
-        }
 
-        else if (String1Voltage >= MaximumStringVolt * 0.91 && String1Voltage < MaximumStringVolt * 0.92 ) {
-          //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
-          set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.8, MaxCurrent, 0x180250F1);
-        }
 
-        else if (String1Voltage >= MaximumStringVolt * 0.92 && String1Voltage < MaximumStringVolt * 0.93 ) {
-          //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
-          set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.7, MaxCurrent, 0x180250F1);
-        }
 
-        else if (String1Voltage >= MaximumStringVolt * 0.93 && String1Voltage < MaximumStringVolt * 0.94 ) {
-          //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
-          set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.6, MaxCurrent, 0x180250F1);
-        }
-
-        else if (String1Voltage >= MaximumStringVolt * 0.94 && String1Voltage < MaximumStringVolt * 0.95 ) {
-          //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float disc7arge_maxcurr ,0x180250F1);
-          set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.5, MaxCurrent, 0x180250F1);
-        }
-
-        else if (String1Voltage >= MaximumStringVolt * 0.95 && String1Voltage < MaximumStringVolt * 0.96 ) {
-          //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
-          set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.4, MaxCurrent, 0x180250F1);
-        }
-        else if (String1Voltage >= MaximumStringVolt * 0.96 && String1Voltage < MaximumStringVolt * 0.97 ) {
-          //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
-          set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.3, MaxCurrent, 0x180250F1);
-        }
-        else if (String1Voltage >= MaximumStringVolt * 0.97 && String1Voltage < MaximumStringVolt * 0.98) {
-          //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
-          set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.2, MaxCurrent, 0x180250F1);
-        }
-        else if (String1Voltage >= MaximumStringVolt * 0.985 && String1Voltage < MaximumStringVolt * 0.99 ) {
-          //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
-          set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0.1, MaxCurrent, 0x180250F1);
-        }
-        else if (String1Voltage >= MaximumStringVolt ) {
-          //set_totalvoltage(float totalvolt, float totalcurrent, float charge_maxcurr, float discharge_maxcurr ,0x180250F1);
-          set_totalvoltage(String1Voltage , String1Current , MaxCurrent * 0, MaxCurrent, 0x180250F1);
-        }
         delay(25);
         //set_groupnumber(uint8_t maxvolt_grpnm, uint8_t maxvolt_packnm, uint8_t maxvolt_boxnm, uint8_t maxtemp_grpnm, uint8_t maxtemp_packnm, uint8_t maxtemp, 0x180350F1);
         set_groupnumber(1, 3, 4, 1, 3, 25, 0x180350F1);
@@ -424,18 +528,15 @@ void INVERTERCANBUSTASK_CODE( void * pvParameters ) {
         set_warnings2(0, 0, 0, 0, 0, 0x180750F1);
         delay(25);
       }
-      if (InverterType == 0) {  //DEYE AND CANBUS BOARD
-        send_inverter(String1SOC, String1Voltage, String1Current,  12);
+      else if (InverterType == 0) {  //DEYE AND CANBUS BOARD
+        send_inverter(String1SOC, String1Voltage, String1Current,  25);
         delay(25);
       }
       SystemAlarm4 = "NoAlarm";
     }
     else {
       SystemAlarm4 = "Inverter canbus did not executed due to improper reading";
-      //
-      //            Serial.println("String1MaxCellMODBUS:" + String(String1MaxCellModbus));
-      //            Serial.println("String1MinCellMODBUS:" + String(String1MinCellModbus));
-      //            Serial.println("CANBUS Error!!!!!!!!!!!!!!!!!!!!!!!");
+
       delay(200);
     }
 
@@ -457,8 +558,8 @@ void CANBUSTASK_CODE( void * pvParameters ) {
       BMS_recieve(0x98, i + 1);
 
 
-      if (CanSim == 0) {
-        if (( abs(BMS_can.current_can - 30000) * 0.1 < 400)  && (abs(BMS_can.discharge_can) < 2) && (abs(BMS_can.discharge_can) < 2) &&
+      if (CanSim == 0  && SETCANSIM == 0) {
+        if (( abs(BMS_can.current_can - 30000) * 0.1 < 1000)  && (abs(BMS_can.discharge_can) < 2) && (abs(BMS_can.discharge_can) < 2) &&
             ((BMS_can.max_cell_temp_can - 40) < 80) && ((BMS_can.max_cell_temp_can - 40) > -5) && (abs(BMS_can.sum_voltage_can * 0.1) < 70) &&
             ((BMS_can.max_cell_volt_can * 0.001) < 5) && ((BMS_can.min_cell_volt_can * 0.001) < 5) && ((BMS_can.sum_voltage_can * 0.1) > 8)) {
           if (Heartbeat < 256) {
@@ -570,10 +671,10 @@ void BREAKERCONTROLTASK_CODE( void * pvParameters ) {
   float DischargeCounter22 = 0;
 
   for (;;) {
-    BREAKER_PULSE++;
     //Charge Control#1
     Rack1ChargeRelayCal = true;
     if (String1Voltage < HighVoltageAlarmStart) {
+      BREAKER_PULSE++;
       for (int i = 0; i < ModuleSize; i++) {
         Rack1ChargeRelayCal = Rack1ChargeRelayCal && ChargeStatusArray[i];
       }
@@ -675,14 +776,52 @@ void BREAKERCONTROLTASK_CODE( void * pvParameters ) {
     }
     if (BoardVersion) {
       if (!FORCE) {
-        digitalWrite(18, Rack1ChargeRelay);
-        digitalWrite(19, Rack1DischargeRelay);
-        digitalWrite(21, Bypass1Relay);
-        digitalWrite(22, Fan1);
-        digitalWrite(5, prechargeStatus);
+
+
+
+
+        SystemWarning3 = "NoWarning";
+        if (!prechargeStatus) {
+
+
+          if (!MasterStopCharge) {
+            digitalWrite(18, Rack1ChargeRelay);
+          }
+          else {
+            Serial.println("ChargeRelay is forced by master");
+            digitalWrite(18, false);
+          }
+
+          if (!MasterStopDischarge) {
+            digitalWrite(19, Rack1DischargeRelay);
+          }
+          else {
+            Serial.println("Discharge relay is forced by master");
+            digitalWrite(19, false);
+          }
+
+          digitalWrite(21, Bypass1Relay);
+          digitalWrite(22, Fan1);
+          digitalWrite(5, prechargeStatus);
+          SystemWarning4 = "Precharge is disabled";
+
+
+        }
+        else {
+          digitalWrite(18, false);
+          digitalWrite(19, false);
+          digitalWrite(21, false);
+          digitalWrite(22, Fan1);
+          digitalWrite(5, prechargeStatus);
+          SystemWarning4 = "Precharge is enabled, charge and discharge relays will be disabled";
+        }
       }
+
+
+
+
       else {
-        //        SystemWarning = "CAUTION !!Breakers are forced!!!!!!!!!!!";
+        SystemWarning3 = "CAUTION !!Breakers are forced!!!!!!!!!!!";
         digitalWrite(18, ForcedRack1ChargeRelay);
         digitalWrite(19, ForcedRack1DischargeRelay);
         digitalWrite(21, ForcedBypass1Relay);
@@ -693,12 +832,24 @@ void BREAKERCONTROLTASK_CODE( void * pvParameters ) {
     else {
       if (!FORCE) {
         SystemWarning3 = "NoWarning";
+        if (!prechargeStatus) {
 
-        digitalWrite(5, Rack1ChargeRelay);
-        digitalWrite(19, Rack1DischargeRelay);
-        digitalWrite(15, Bypass1Relay);
-        digitalWrite(26, Fan1);
-        digitalWrite(18, prechargeStatus);
+          digitalWrite(5, Rack1ChargeRelay);
+          digitalWrite(19, Rack1DischargeRelay);
+          digitalWrite(15, Bypass1Relay);
+          digitalWrite(26, Fan1);
+          digitalWrite(18, prechargeStatus);
+          SystemWarning4 = "Precharge is disabled";
+        }
+        else {
+          digitalWrite(5, false);
+          digitalWrite(19, false);
+          digitalWrite(15, false);
+          digitalWrite(26, Fan1);
+          digitalWrite(18, prechargeStatus);
+          SystemWarning4 = "Precharge is enabled, charge and discharge relays will be disabled";
+
+        }
       }
       else {
         SystemWarning3 = "CAUTION !!Breakers are forced!!!!!!!!!!!";
@@ -717,7 +868,7 @@ void BREAKERCONTROLTASK_CODE( void * pvParameters ) {
 
 void ANALOGTASK_CODE( void * pvParameters ) {
   TaskArray[3] = true;
-  int PrechargeCounter2024 = 0;
+
   int CurrentMillis = 0;
   int PreviousMillis = 0;
 
@@ -766,6 +917,7 @@ void ANALOGTASK_CODE( void * pvParameters ) {
 
 
       if (prechargeVolt > 0.2) {
+        SystemWarning5 = "Precharge voltage is good - Precharge Counter:" + String(PrechargeCounter2024);
         // Serial.println("Precharge voltage is good!");
         PrechargeCounter2024++;
         //Serial.println("Precharge counter:"+String(PrechargeCounter2024));
@@ -775,7 +927,8 @@ void ANALOGTASK_CODE( void * pvParameters ) {
         }
       }
       else {
-        // Serial.println("Precharge voltage is low:" + String(prechargeVolt));
+        SystemWarning5 = "Precharge voltage is low" + String(prechargeVolt);
+
       }
     }
 
@@ -807,11 +960,14 @@ void BT_CODE( void * pvParameters ) {
 
   BluetoothSerial SerialBT;
   SerialBT.begin(BT_STATION.c_str()); //Bluetooth device name
+  BluetoothStatus = true;
   TaskArray[5] = true;
 
   for (;;) {
 
     if (SerialBT.available()) {
+
+
       char incomingChar = SerialBT.read();
       if (incomingChar != '\n') {
         message += String(incomingChar);
@@ -1193,15 +1349,13 @@ void BT_CODE( void * pvParameters ) {
 
 
 
-      //set cansim ////////////////////////////////
-      param_start2 = message.indexOf("SETCANSIM");
-      param_end2 = message.indexOf("#");
-      if (param_start2 != -1 && param_end2 != -1) {
-        BTProcessor2 = message.substring(param_start2 + 9, param_end2);
-        CanSim = BTProcessor2.toInt();
-        SerialBT.println("CanSim:" + String(CanSim));
-        message = "";
-      }
+
+
+
+
+
+
+
 
       //GET cansim ////////////////////////////////
       param_start2 = message.indexOf("GETCANSIM");
@@ -1296,47 +1450,72 @@ void MODBUSTASK_CODE( void * pvParameters ) {
       Fan1 = false;
     }
 
-    for (int i = 0; i < ModuleSize; i++) {
-      MODBUSARRAY[i + ModuleSize * 0] = TerminalVoltageArray[i] * 10;
-      MODBUSARRAY[i + ModuleSize * 1] = TerminalCurrentArray[i] * 10;
-      MODBUSARRAY[i + ModuleSize * 2] = TerminalTempArray[i] * 10;
-      MODBUSARRAY[i + ModuleSize * 3] = MaxCellArray[i] * 100;
-      MODBUSARRAY[i + ModuleSize * 4] = MinCellArray[i] * 100;
-      MODBUSARRAY[i + ModuleSize * 5] = TerminalSOCArray[i] * 10;
-      MODBUSARRAY[i + ModuleSize * 6] = ChargeStatusArray[i];
-      MODBUSARRAY[i + ModuleSize * 7] = DischargeStatusArray[i];
+    if (String1MaxCellModbus  < 4.8  && String1MinCellModbus  < 4.8  && String1SOC < 105  && abs(String1Current) < 800 && String1MaxCellModbus  > 2.2 && String1MinCellModbus  > 2.2 && String1Voltage < 1000 && String1Voltage > 80 ) {
+
+
+      for (int i = 0; i < ModuleSize; i++) {
+        MODBUSARRAY[i + ModuleSize * 0] = TerminalVoltageArray[i] * 10;
+        MODBUSARRAY[i + ModuleSize * 1] = TerminalCurrentArray[i] * 10;
+        MODBUSARRAY[i + ModuleSize * 2] = TerminalTempArray[i] * 10;
+        MODBUSARRAY[i + ModuleSize * 3] = MaxCellArray[i] * 100;
+        MODBUSARRAY[i + ModuleSize * 4] = MinCellArray[i] * 100;
+        MODBUSARRAY[i + ModuleSize * 5] = TerminalSOCArray[i] * 10;
+        MODBUSARRAY[i + ModuleSize * 6] = ChargeStatusArray[i];
+        MODBUSARRAY[i + ModuleSize * 7] = DischargeStatusArray[i];
+      }
+
+      MODBUSARRAY[ModuleSize * 8 + 0] = Rack1ChargeRelay;
+      MODBUSARRAY[ModuleSize * 8 + 1] = Rack1DischargeRelay;
+      MODBUSARRAY[ModuleSize * 8 + 2] = Bypass1Relay;
+      MODBUSARRAY[ModuleSize * 8 + 3] = prechargeStatus;
+      MODBUSARRAY[ModuleSize * 8 + 4] = Fan1;
+      MODBUSARRAY[ModuleSize * 8 + 5] = temp1;
+      MODBUSARRAY[ModuleSize * 8 + 6] = Heartbeat;
+      MODBUSARRAY[ModuleSize * 8 + 7] = String1Voltage * 10;
+      MODBUSARRAY[ModuleSize * 8 + 8] = String1Current * 10;
+      MODBUSARRAY[ModuleSize * 8 + 9] = String1SOC * 10;
+
+      if (ModuleSize >= 10) {
+        MODBUSARRAY[ModuleSize * 9 + 0] = String1Temp * 10;
+        MODBUSARRAY[ModuleSize * 9 + 1] = (String1MaxCell - String1MinCell) * 100;
+
+        MODBUSARRAY[ModuleSize * 9 + 2] = TerminalVoltageArray[ModuleSize] * 10;
+        MODBUSARRAY[ModuleSize * 9 + 3] = TerminalCurrentArray[ModuleSize] * 10;
+        MODBUSARRAY[ModuleSize * 9 + 4] = TerminalTempArray[ModuleSize] * 10;
+        MODBUSARRAY[ModuleSize * 9 + 5] = TerminalSOCArray[ModuleSize] * 10;
+
+
+        MasterStopCharge = MODBUSARRAY[ModuleSize * 9 + 6];
+        MasterStopDischarge = MODBUSARRAY[ModuleSize * 9 + 7];
+        MasterForcePrecharge = MODBUSARRAY[ModuleSize * 9 + 8];
+
+      }
+      else {
+        MODBUSARRAY[ModuleSize * 8 + 10] = String1Temp * 10;
+        MODBUSARRAY[ModuleSize * 8 + 11] = (String1MaxCell - String1MinCell) * 100;
+        MODBUSARRAY[ModuleSize * 8 + 12] = TerminalVoltageArray[ModuleSize] * 10;
+        MODBUSARRAY[ModuleSize * 8 + 13] = TerminalCurrentArray[ModuleSize] * 10;
+        MODBUSARRAY[ModuleSize * 8 + 14] = TerminalTempArray[ModuleSize] * 10;
+        MODBUSARRAY[ModuleSize * 8 + 15] = TerminalSOCArray[ModuleSize] * 10;
+
+        MasterStopCharge = MODBUSARRAY[ModuleSize * 8 + 16];
+        MasterStopDischarge = MODBUSARRAY[ModuleSize * 8 + 17];
+        MasterForcePrecharge = MODBUSARRAY[ModuleSize * 8 + 18];
+      }
+
+      if (MasterForcePrecharge) {
+        Serial.println("Precharge is forced!!!");
+        PrechargeCounter2024 = 0;
+        prechargeStatus = true;
+      }
     }
 
-    MODBUSARRAY[ModuleSize * 8 + 0] = Rack1ChargeRelay;
-    MODBUSARRAY[ModuleSize * 8 + 1] = Rack1DischargeRelay;
-    MODBUSARRAY[ModuleSize * 8 + 2] = Bypass1Relay;
-    MODBUSARRAY[ModuleSize * 8 + 3] = prechargeStatus;
-    MODBUSARRAY[ModuleSize * 8 + 4] = Fan1;
-    MODBUSARRAY[ModuleSize * 8 + 5] = temp1;
-    MODBUSARRAY[ModuleSize * 8 + 6] = Heartbeat;
-    MODBUSARRAY[ModuleSize * 8 + 7] = String1Voltage * 10;
-    MODBUSARRAY[ModuleSize * 8 + 8] = String1Current * 10;
-    MODBUSARRAY[ModuleSize * 8 + 9] = String1SOC * 10;
 
-    if (ModuleSize >= 10) {
-      MODBUSARRAY[ModuleSize * 9 + 0] = String1Temp * 10;
-      MODBUSARRAY[ModuleSize * 9 + 1] = (String1MaxCell - String1MinCell) * 100;
-      
-      MODBUSARRAY[ModuleSize * 9 + 2] = TerminalVoltageArray[ModuleSize] * 10;
-      MODBUSARRAY[ModuleSize * 9 + 3] = TerminalCurrentArray[ModuleSize] * 10;
-      MODBUSARRAY[ModuleSize * 9 + 4] = TerminalTempArray[ModuleSize] * 10;
-      MODBUSARRAY[ModuleSize * 9 + 5] = TerminalSOCArray[ModuleSize] * 10;
-    }
     else {
-      MODBUSARRAY[ModuleSize * 8 + 10] = String1Temp * 10;
-      MODBUSARRAY[ModuleSize * 8 + 11] = (String1MaxCell - String1MinCell) * 100;
-      MODBUSARRAY[ModuleSize * 8 + 12] = TerminalVoltageArray[ModuleSize] * 10;
-      MODBUSARRAY[ModuleSize * 8 + 13] = TerminalCurrentArray[ModuleSize] * 10;
-      MODBUSARRAY[ModuleSize * 8 + 14] = TerminalTempArray[ModuleSize] * 10;
-      MODBUSARRAY[ModuleSize * 8 + 15] = TerminalSOCArray[ModuleSize] * 10;
+      //Serial.println("CANBUS INSTABILITY ISSUE OR NO MODULE TO COMMUNICATE!!");
     }
-
     slave.poll( MODBUSARRAY, ModuleSize * 10);
+
     delay(100);
   }
 }
@@ -1395,12 +1574,16 @@ void analyseNewData() {
     Serial.println("         BoardVersion:" + String(BoardVersion));
     Serial.println("         SubID:" + String(SubID) );
     Serial.println("         ModuleSize:" + String(ModuleSize));
+    Serial.println("         BluetoothStatus:" + String(BluetoothStatus));
+
+
     Serial.println("         SerialNumber:" + String(SerialNumber));
     Serial.println("         FirmwareVersion:" + String(FirmwareVer));
     Serial.println("         Canbus BaudRate:" + String(CanbusBaudRate) + "kb");
     Serial.println("         Modbus BaudRate:" + String(ModbusBaudRate) + "kb");
     Serial.println("         Inverter Type:" + String(InverterType));
     Serial.println("         Simulation Status:" + String(CanSim));
+    Serial.println("         Simulation Status#2:" + String(SETCANSIM));
     Serial.println("         Maximum Module Volt:" + String(MaximumModuleVolt) + "V");
     Serial.println("         Maximum String Volt:" + String(MaximumStringVolt) + "V");
     Serial.println();
@@ -1485,10 +1668,8 @@ void analyseNewData() {
     Serial.println("         SystemWarning #1:" + String(SystemWarning1));
     Serial.println("         SystemWarning #2:" + String(SystemWarning2));
     Serial.println("         SystemWarning #3:" + String(SystemWarning3));
-
-
-
-
+    Serial.println("         SystemWarning #4:" + String(SystemWarning4));
+    Serial.println("         SystemWarning #5:" + String(SystemWarning5));
 
 
     Serial.println("         I2C Working Status:" + String(result));
@@ -1697,6 +1878,22 @@ void analyseNewData() {
     Serial.println("CanSim:" + String(CanSim));
     receivedString = "";
   }
+
+  else if (receivedString.indexOf("SETCAN") != -1 && receivedString.indexOf("#") != -1) {
+    SerialProcessor = receivedString.substring(receivedString.indexOf("SETCAN") + 6, receivedString.indexOf("#"));
+    SETCANSIM = SerialProcessor.toInt();
+    Serial.println("SetCanSim:" + String(SETCANSIM));
+    receivedString = "";
+
+
+    preferences.begin("my-app", false);
+    preferences.putInt("SETCANSIM", SETCANSIM);
+    preferences.end();
+  }
+
+
+
+
 
   else if (receivedString.indexOf("FC") != -1 && receivedString.indexOf("#") != -1) {
     SerialProcessor = receivedString.substring(receivedString.indexOf("FC") + 2, receivedString.indexOf("#"));
